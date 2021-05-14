@@ -19,6 +19,7 @@ function SignOut = SigPro(ti,yi,fs,Wndw,trend,ts,ffi,fff,TimSigYLabel,plotfft,pl
 %       cuando la excitación es nula).
 %   ffi: frecuencia de corte del filtro pasa alto.
 %   fff: frecuencia de corte del filtro pasa bajo.
+%   TimSigYLabel: Character indicating YLabel for time-domain plot.
 %   plotfft: 1:plot fft, 0:do not plot.
 %   plotpsd: 1:plot psd, 0:do not plot.
 %   plotspt: 1:plot spectrogram, 0:do not plot.
@@ -30,7 +31,7 @@ function SignOut = SigPro(ti,yi,fs,Wndw,trend,ts,ffi,fff,TimSigYLabel,plotfft,pl
 % %%%%% M.G.H. %%%%%
 % %%% 2020/06/01 %%%
 % %%%%%%%%%%%%%%%%%%
-StartTime_SigPro = tic;
+tic_SigPro = tic;
 %%%%%%%%%%%% --------------------------------------------------------------
 %%% Wndw %%%
 %%%%%%%%%%%%
@@ -88,7 +89,7 @@ end
 %%%%%%%%%%%% --------------------------------------------------------------
 %%% Time %%%
 %%%%%%%%%%%%
-if ~strcmp(TimSigYLabel,' ')
+if ~strcmp(TimSigYLabel,' ') && ~isempty(TimSigYLabel)   
     PlotTimeSignal(t,y,TimSigYLabel)
 end
 %%%%%%%%%%% ---------------------------------------------------------------
@@ -130,7 +131,7 @@ SignOut.dt  = dt;
 SignOut.ffi = ffi;
 SignOut.fff = fff;
 %%% -----------------------------------------------------------------------
-disp(['SigPro: ',num2str(toc(StartTime_SigPro),'%.2f')])
+disp(['SigPro: ',num2str(toc(tic_SigPro),'%.2f')])
 end
 %% PlotTimeSignal
 function PlotTimeSignal(ti,yi,YLabel)
