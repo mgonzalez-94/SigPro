@@ -1,37 +1,74 @@
-function SignOut = SigPro(ti,yi,fs,Wndw,trend,ts,ffi,fff,TimSigYLabel,plotfft,plotpsd,plotspt)
+function SignOut = SigPro(varargin)
 %
-% SignOut = SigPro(ti,yi,refch,fs,trend,ts,ffi,fff)
+% SignOut = SigPro(ti,yi,fs,Wndw,trend,ts,ffi,fff,TimSigYLabel,plotfft,plotpsd,plotspt)
 %
 % Función para realizar el procesamiento de señales.
 %
 % INPUTS:
+%
 %   ti: puede ser [], escalar indicando en que tiempo inicial o
 %       directamente el vector de tiempo inicial (antes de ser
 %       remuestreado).
+%
 %   yi: señales iniciales (antes de ser procesadas y remuestreadas).
+%
 %   fs: frecuencia de muestreo, en caso de ser diferente de 0 y menor a la
 %       del vector ti, se hará remuestreo.
+%
 %   Wndw: puede ser [] o vector con dos valores en *número de puntos* que limitan la ventana de
 %       datos seleccionada. Ejemplo: Wndw = [1, 578]; % (seleccionar los
 %       datos entre el segundo 1/fs y el 578/fs).
+%
 %   trend: valor lógico (1:true, 0:false) para realizar detrend.
+%
 %   ts: duración del suavizado inicial y final de la señal (eliminar ruido
 %       cuando la excitación es nula).
+%
 %   ffi: frecuencia de corte del filtro pasa alto.
+%
 %   fff: frecuencia de corte del filtro pasa bajo.
+%
 %   TimSigYLabel: Character indicating YLabel for time-domain plot.
+%
 %   plotfft: 1:plot fft, 0:do not plot.
+%
 %   plotpsd: 1:plot psd, 0:do not plot.
+%
 %   plotspt: 1:plot spectrogram, 0:do not plot.
 %
+%   plotpwl: 1:plot pwelch, 0:do not plot.
+%
 % OUTPUTS:
+%
 %   SignOut: estructura con las propiedades de la señal procesada.
 %
-% %%%%%%%%%%%%%%%%%%
-% %%%%% M.G.H. %%%%%
-% %%% 2020/06/01 %%%
-% %%%%%%%%%%%%%%%%%%
-tic_SigPro = tic;
+% Created By:
+%
+%   Mateo G. H. (2020/06/01)
+%
+% Modified By:
+%
+%   Mateo G. H. (2021/06/05)
+
+Fcn_tic = tic;
+%%% -----------------------------------------------------------------------
+ti = varargin{1};
+yi = varargin{2};
+fs = varargin{3};
+Wndw = varargin{4};
+trend = varargin{5};
+ts = varargin{6};
+ffi = varargin{7};
+fff = varargin{8};
+TimSigYLabel = varargin{9};
+plotfft = varargin{10};
+plotpsd = varargin{11};
+plotspt = varargin{12};
+if nargin > 12
+    plotpwl = varargin{13};
+else
+    plotpwl = 0;
+end
 %%%%%%%%%%%% --------------------------------------------------------------
 %%% Wndw %%%
 %%%%%%%%%%%%
@@ -76,12 +113,14 @@ end
 %%%%%%%%%%%%%% ------------------------------------------------------------
 %%% Filter %%%
 %%%%%%%%%%%%%%
+MaxFreq = min([0.4*fs,fff]);
 if ffi~=0     	%%% High
     fc      = min([ffi,0.99*fs/2]); % (Hz)
     [z,p,k] = butter(6,fc/(fs/2),'high');
     sos     = zp2sos(z,p,k);
     y       = filtfilt(sos,1,y); % fvtool(sos,'Analysis','freq')
-elseif fff~=0	%%% Low
+end
+if fff~=0	%%% Low
     fc    = min([fff,0.99*fs/2]); % (Hz)
     [B,A] = butter(6,fc/(fs/2),'low');
     y     = filtfilt(B,A,y); % fvtool(B,A)
@@ -89,7 +128,7 @@ end
 %%%%%%%%%%%% --------------------------------------------------------------
 %%% Time %%%
 %%%%%%%%%%%%
-if ~strcmp(TimSigYLabel,' ') && ~isempty(TimSigYLabel)   
+if ~strcmp(TimSigYLabel,' ') && ~isempty(TimSigYLabel)
     PlotTimeSignal(t,y,TimSigYLabel)
 end
 %%%%%%%%%%% ---------------------------------------------------------------
@@ -101,22 +140,38 @@ Yp = angle(Y);                  % fase (rad).
 f  = ((0:length(Y)/2-1)*fs/L)';	% (Hz)
 Y  = Y(1:length(f),:);          % (|Y(f)|)
 if plotfft==1
-    PlotFFT(f,abs(Y),fs);
+    PlotY(f,abs(Y),MaxFreq,'Frecuencia (Hz)','|Y(f)|','FFT');
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  -------------------------------------------
 %%% Power spectral density %%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-nfft  = length(y);
-windw = rectwin(nfft);
-[Ypsd,fpsd] = periodogram(y,windw,nfft,fs);
 if plotpsd==1
-    PlotPSD(fpsd,10*log10(Ypsd),fs);
+    nfft  = length(y);
+    windw = rectwin(nfft);
+    [Ypsd,fpsd] = periodogram(y,windw,nfft,fs);
+    PlotY(fpsd,10*log10(Ypsd),MaxFreq,'Frecuencia (Hz)','PSD (dB/Hz)','Periodogram power spectral density');
 end
 %%%%%%%%%%%%%%%%%%% -------------------------------------------------------
 %%% Spectrogram %%%
 %%%%%%%%%%%%%%%%%%%
 if plotspt==1
     PlotSpectrogram(y,fs);
+end
+%%%%%%%%%%%%%% ------------------------------------------------------------
+%%% PWelch %%%
+%%%%%%%%%%%%%%
+if plotpwl==1
+    L = length(y);
+    Nfft  = pow2(nextpow2(L));
+    WndwL = round(L/20);
+    Wndw  = hamming(WndwL);
+    Nvrlp = floor(0.5*WndwL);
+    [PW_Y,PW_f] = pwelch(y,Wndw,Nvrlp,Nfft,fs);
+    %%% Plot
+    PlotY(PW_f,10*log10(PW_Y),MaxFreq,'Frecuencia (Hz)','PSD (dB/Hz)','Welch''s power spectral density');
+    %%%
+    SignOut.Welch.f = PW_f;
+    SignOut.Welch.Y = PW_Y;
 end
 %%%%%%%%%%%%%%%%%%% -------------------------------------------------------
 %%% Export data %%%
@@ -131,7 +186,7 @@ SignOut.dt  = dt;
 SignOut.ffi = ffi;
 SignOut.fff = fff;
 %%% -----------------------------------------------------------------------
-disp(['SigPro: ',num2str(toc(tic_SigPro),'%.2f')])
+disp(['SigPro: ',num2str(toc(Fcn_tic),'%.2f')])
 end
 %% PlotTimeSignal
 function PlotTimeSignal(ti,yi,YLabel)
@@ -180,20 +235,25 @@ lgn1 = legend(lgn1,'FontSize',GraphProp.fontsize-2,'Location','best');
 set(lgn1.BoxFace, 'ColorType','truecoloralpha', 'ColorData',uint8(255*[1;1;1;.9]));
 end
 %%% -----------------------------------------------------------------------
-%% PlotFFT
-function PlotFFT(f,Y,fs)
+%% PlotY
+function PlotY(varargin)
 GraphProp = GraphicalProperties;
+%%% -----------------------------------------------------------------------
+f = varargin{1};
+Y = varargin{2};
+MaxFreq = varargin{3};
+XLabel = varargin{4};
+YLabel = varargin{5};
 %%% Figura ----------------------------------------------------------------
 wid = 16;
 hei = 7;
-fig = figure('Units','centimeters','Position',[1 1 wid hei],'Name','fft'); %#ok<NASGU>
+fig = figure('Units','centimeters','Position',[1 1 wid hei]);
 N    = size(Y,2);
 Clrs = colormap(winter(N));
 LnSt = {'-','--','-.','-','--','-.'}; if N/length(LnSt)>1; LnSt = repmat(LnSt,1,ceil(N/length(LnSt))); end
 %%% -----------------------------------------------------------------------
 ax2 = axes;
 pl1 = plot(f,Y);
-xlim([0.1 floor(fs/2)-1]);
 for ii=1:N
     pl1(ii).Color     = Clrs(ii,:);
     pl1(ii).LineWidth = GraphProp.linewidth;
@@ -201,45 +261,24 @@ for ii=1:N
 end
 set(ax2,GraphProp.Prop);set(ax2.XAxis,GraphProp.PropXA);set(ax2.YAxis,GraphProp.PropYA);set(ax2.Title,GraphProp.PropT);
 set(ax2.XLabel,GraphProp.PropXL); set(ax2.YLabel,GraphProp.PropYL);
+ax2.XLim = [0.1 MaxFreq];
 ax2.Title.String  = '';
-ax2.YLabel.String = '|Y(f)|';
-ax2.XLabel.String = 'Frecuencia (Hz)';
-%%% -----------------------------------------------------------------------
-lgn1 = cellstr(num2str((1:N)'));
-lgn1 = legend(lgn1,'FontSize',GraphProp.fontsize-2,'Location','northeast');
-set(lgn1.BoxFace, 'ColorType','truecoloralpha', 'ColorData',uint8(255*[1;1;1;.9]));
+ax2.YLabel.String = YLabel;
+ax2.XLabel.String = XLabel;
+if nargin>5
+    fig.Name = varargin{6};
 end
-%% PlotPSD
-function PlotPSD(f,Y,fs)
-GraphProp = GraphicalProperties;
-%%% Figura ----------------------------------------------------------------
-wid = 16;
-hei = 7;
-fig = figure('Units','centimeters','Position',[1 1 wid hei],'Name','PSD'); %#ok<NASGU>
-N    = size(Y,2);
-Clrs = colormap(winter(N));
-LnSt = {'-','--','-.','-','--','-.'}; if N/length(LnSt)>1; LnSt = repmat(LnSt,1,ceil(N/length(LnSt))); end
-%%% -----------------------------------------------------------------------
-ax2 = axes;
-pl1 = plot(f,Y);
-xlim([0.1 floor(fs/2)-1]);
-for ii=1:N
-    pl1(ii).Color     = Clrs(ii,:);
-    pl1(ii).LineWidth = GraphProp.linewidth;
-    pl1(ii).LineStyle = LnSt{ii};
-end
-set(ax2,GraphProp.Prop);set(ax2.XAxis,GraphProp.PropXA);set(ax2.YAxis,GraphProp.PropYA);set(ax2.Title,GraphProp.PropT);
-set(ax2.XLabel,GraphProp.PropXL);set(ax2.YLabel,GraphProp.PropYL);
-ax2.Title.String  = '';
-ax2.YLabel.String = 'PSD (dB/Hz)';
-ax2.XLabel.String = 'Frecuencia (Hz)';
 %%% -----------------------------------------------------------------------
 lgn1 = cellstr(num2str((1:N)'));
 lgn1 = legend(lgn1,'FontSize',GraphProp.fontsize-2,'Location','northeast');
 set(lgn1.BoxFace, 'ColorType','truecoloralpha', 'ColorData',uint8(255*[1;1;1;.9]));
 end
 %% PlotSpectrogram
-function PlotSpectrogram(y,fs)
+function PlotSpectrogram(varargin)
+%%%
+y = varargin{1};
+fs = varargin{2};
+%%%
 GraphProp = GraphicalProperties;
 %%% Figura ----------------------------------------------------------------
 wid = 16;
@@ -260,33 +299,4 @@ for ii=1:size(y,2)
     ax2.XLabel.String = 'Frecuencia (Hz)';
     ax1.Label.String  = 'Potencia/frecuencia (dB/Hz)';
 end
-end
-%% GraphicalProperties
-function GraphProp = GraphicalProperties
-GraphProp.fontname            = 'Calibri Light';
-GraphProp.fontsize            = 11;
-GraphProp.linewidth           = 1.2;
-GraphProp.Prop.FontName       = GraphProp.fontname;
-GraphProp.Prop.FontSize       = GraphProp.fontsize;
-GraphProp.PropYL.FontName     = GraphProp.fontname;
-GraphProp.PropYL.FontSize     = GraphProp.fontsize;
-GraphProp.PropXL.FontName     = GraphProp.fontname;
-GraphProp.PropXL.FontSize     = GraphProp.fontsize;
-GraphProp.Prop.GridColor      = [1 1 1]*0.6;
-GraphProp.Prop.MinorGridColor = [1 1 1]*0.6;
-GraphProp.Prop.XMinorGrid     = 'on';
-GraphProp.Prop.YMinorGrid     = 'on';
-GraphProp.Prop.XGrid          = 'on';
-GraphProp.Prop.YGrid          = 'on';
-GraphProp.Prop.Box            = 'on';
-GraphProp.PropYA.Color        = [1 1 1]*0;
-GraphProp.PropXA.Color        = [1 1 1]*0;
-GraphProp.PropT.FontName      = GraphProp.fontname;
-GraphProp.PropT.FontSize      = GraphProp.fontsize;
-% set(Ax1,GraphProp.Prop);
-% set(Ax1.XAxis,GraphProp.PropXA);
-% set(Ax1.YAxis,GraphProp.PropYA);
-% set(Ax1.Title,GraphProp.PropT);
-% set(Ax1.XLabel,GraphProp.PropXL);
-% set(Ax1.YLabel,GraphProp.PropYL);
 end
