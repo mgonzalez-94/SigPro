@@ -1,1 +1,4 @@
 # SigPro
+
+##Descargas adicionales:
+- GraphicalProperties
